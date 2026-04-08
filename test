@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 # Конфигурация
 class Config:
     BOT_TOKEN = "8568075251:AAFT57b2PVMa5KJNRpPa6WxoZ0Xlv--YXTY"
-    HAPP_API_URL = "https://api.happ.example.com"  # URL API Happ
+    HAPP_API_URL = "https://crypto.happ.su/api-v2.php"
     HAPP_API_KEY = "hbQv5We5uVt2qZEqPRs-7Nq4nFxK9mL8"
     SERVER_LIST = [
         {"id": 1, "name": "🇺🇸 USA-1", "host": "vpn-usa1.example.com", "port": 443},
