@@ -1,338 +1,64 @@
-
-
 import asyncio
-import logging
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional
-import aiohttp
-from aiogram import Bot, Dispatcher, types
+import requests
+from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-# Настройка логирования
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Настройки бота и X-UI
+BOT_TOKEN = "8568075251:AAFT57b2PVMa5KJNRpPa6WxoZ0Xlv--YXTY"
+XUI_URL = "http:/mu9QJ5terMHM2MY:2283"  # Например: http://1.2.3.4:2053
+XUI_USERNAME = "wninHaLQsL"
+XUI_PASSWORD = "yOWYmJCsAk"
 
-# Конфигурация
-class Config:
-    BOT_TOKEN = "8568075251:AAFT57b2PVMa5KJNRpPa6WxoZ0Xlv--YXTY"
-    HAPP_API_URL = "https://crypto.happ.su/api-v2.php"
-    HAPP_API_KEY = "hbQv5We5uVt2qZEqPRs-7Nq4nFxK9mL8"
-    SERVER_LIST = [
-        {"id": 1, "name": "🇺🇸 USA-1", "host": "vpn-usa1.example.com", "port": 443},
-        {"id": 2, "name": "🇩🇪 Germany-1", "host": "vpn-de1.example.com", "port": 443},
-        {"id": 3, "name": "🇬🇧 UK-1", "host": "vpn-uk1.example.com", "port": 443},
-        {"id": 4, "name": "🇯🇵 Japan-1", "host": "vpn-jp1.example.com", "port": 443},
-    ]
-
-# Состояния FSM
-class SubscriptionStates(StatesGroup):
-    choosing_server = State()
-    choosing_period = State()
-    processing_payment = State()
-
-# Класс для работы с Happ API
-class HappAPI:
-    def __init__(self, api_url: str, api_key: str):
-        self.api_url = api_url
-        self.api_key = api_key
-        self.headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json"
-        }
-    
-    async def create_subscription(self, user_id: int, server_id: int, 
-                                  duration_days: int) -> Dict:
-        """Создать подписку в Happ"""
-        async with aiohttp.ClientSession() as session:
-            payload = {
-                "user_id": user_id,
-                "server_id": server_id,
-                "duration_days": duration_days,
-                "start_date": datetime.now().isoformat(),
-                "end_date": (datetime.now() + timedelta(days=duration_days)).isoformat()
-            }
-            
-            try:
-                async with session.post(
-                    f"{self.api_url}/api/v1/subscriptions",
-                    json=payload,
-                    headers=self.headers
-                ) as response:
-                    if response.status == 201:
-                        return await response.json()
-                    else:
-                        logger.error(f"Happ API error: {response.status}")
-                        return None
-            except Exception as e:
-                logger.error(f"Error connecting to Happ API: {e}")
-                return None
-    
-    async def get_user_subscriptions(self, user_id: int) -> List[Dict]:
-        """Получить подписки пользователя"""
-        async with aiohttp.ClientSession() as session:
-            try:
-                async with session.get(
-                    f"{self.api_url}/api/v1/subscriptions/user/{user_id}",
-                    headers=self.headers
-                ) as response:
-                    if response.status == 200:
-                        return await response.json()
-                    return []
-            except Exception as e:
-                logger.error(f"Error getting subscriptions: {e}")
-                return []
-    
-    async def get_server_status(self, server_id: int) -> Dict:
-        """Получить статус сервера"""
-        async with aiohttp.ClientSession() as session:
-            try:
-                async with session.get(
-                    f"{self.api_url}/api/v1/servers/{server_id}/status",
-                    headers=self.headers
-                ) as response:
-                    if response.status == 200:
-                        return await response.json()
-                    return {"status": "unknown", "load": 0}
-            except Exception as e:
-                logger.error(f"Error getting server status: {e}")
-                return {"status": "offline", "load": 0}
-
-# Инициализация
-bot = Bot(token=Config.BOT_TOKEN)
+bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-happ_api = HappAPI(Config.HAPP_API_URL, Config.HAPP_API_KEY)
+# 1. Функция авторизации в X-UI
+def get_xui_session():
+    session = requests.Session()
+    session.post(f"{XUI_URL}/login", data={"username": XUI_USERNAME, "password": XUI_PASSWORD})
+    return session
 
-# Клавиатуры
-def get_servers_keyboard() -> InlineKeyboardMarkup:
-    """Клавиатура для выбора сервера"""
-    keyboard = []
-    for server in Config.SERVER_LIST:
-        keyboard.append([
-            InlineKeyboardButton(
-                text=server["name"],
-                callback_data=f"server_{server['id']}"
-            )
-        ])
-    keyboard.append([InlineKeyboardButton(text="❌ Отмена", callback_data="cancel")])
-    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+# 2. Функция создания клиента (VPN-ключа)
+def create_vpn_client(user_id):
+    session = get_xui_session()
+    # Пример запроса добавления клиента к inbounds (зависит от версии X-UI)
+    # email должен быть уникальным
+    client_data = {
+        "id": "1", # ID inbound'а в панели
+        "settings": {
+            "clients": [{
+                "id": user_id, # Обычно используется UUID
+                "email": f"user_{user_id}",
+                "limitIp": 2,
+                "totalGB": 0,
+                "expiryTime": 0,
+                "enable": True
+            }]
+        }
+    }
+    # URL для добавления клиента (может отличаться в разных X-UI)
+    response = session.post(f"{XUI_URL}/xui/inbound/addClient", json=client_data)
+    return response.json()
 
-def get_period_keyboard() -> InlineKeyboardMarkup:
-    """Клавиатура для выбора периода подписки"""
-    keyboard = [
-        [
-            InlineKeyboardButton(text="1 месяц - $5", callback_data="period_30"),
-            InlineKeyboardButton(text="3 месяца - $12", callback_data="period_90"),
-        ],
-        [
-            InlineKeyboardButton(text="6 месяцев - $20", callback_data="period_180"),
-            InlineKeyboardButton(text="1 год - $35", callback_data="period_365"),
-        ],
-        [InlineKeyboardButton(text="◀️ Назад", callback_data="back_to_servers")],
-    ]
-    return InlineKeyboardMarkup(inline_keyboard=keyboard)
-
-# Команды бота
 @dp.message(Command("start"))
-async def cmd_start(message: Message):
-    """Команда /start"""
-    welcome_text = """
-    🛡️ *VPN Bot*
-    
-    Добро пожаловать! Я помогу вам подключиться к VPN серверам.
-    
-    Доступные команды:
-    /buy - Купить подписку
-    /mysubs - Мои подписки
-    /servers - Список серверов
-    /help - Помощь
-    """
-    await message.answer(welcome_text, parse_mode="Markdown")
+async def cmd_start(message: types.Message):
+    await message.answer("Привет! Нажми /get_vpn чтобы получить доступ.")
 
-@dp.message(Command("buy"))
-async def cmd_buy(message: Message, state: FSMContext):
-    """Начать процесс покупки подписки"""
-    await state.set_state(SubscriptionStates.choosing_server)
+@dp.message(Command("get_vpn"))
+async def cmd_get_vpn(message: types.Message):
+    # Создаем клиента в X-UI
+    user_key = f"user-{message.from_user.id}"
+    create_vpn_client(user_key)
     
-    servers_text = "🌐 *Выберите сервер для подключения:*\n\n"
-    for server in Config.SERVER_LIST:
-        servers_text += f"• {server['name']}\n"
+    # Здесь нужно сформировать ссылку VLESS/VMess на основе данных X-UI
+    # Обычно она выглядит как: vless://...
+    vpn_link = f"vless://..." 
     
-    await message.answer(
-        servers_text,
-        parse_mode="Markdown",
-        reply_markup=get_servers_keyboard()
-    )
+    await message.answer(f"Ваш VPN-ключ:\n`{vpn_link}`", parse_mode="Markdown")
 
-@dp.message(Command("mysubs"))
-async def cmd_mysubs(message: Message):
-    """Показать текущие подписки пользователя"""
-    user_id = message.from_user.id
-    
-    # Получаем подписки из Happ
-    subscriptions = await happ_api.get_user_subscriptions(user_id)
-    
-    if not subscriptions:
-        await message.answer("У вас нет активных подписок.")
-        return
-    
-    response_text = "📋 *Ваши подписки:*\n\n"
-    
-    for sub in subscriptions:
-        server_name = next(
-            (s["name"] for s in Config.SERVER_LIST if s["id"] == sub["server_id"]),
-            f"Сервер #{sub['server_id']}"
-        )
-        
-        start_date = datetime.fromisoformat(sub["start_date"])
-        end_date = datetime.fromisoformat(sub["end_date"])
-        days_left = (end_date - datetime.now()).days
-        
-        response_text += (
-            f"• *{server_name}*\n"
-            f"  Статус: {'✅ Активна' if days_left > 0 else '❌ Истекла'}\n"
-            f"  Осталось дней: {max(0, days_left)}\n"
-            f"  До: {end_date.strftime('%d.%m.%Y')}\n\n"
-        )
-    
-    await message.answer(response_text, parse_mode="Markdown")
-
-@dp.message(Command("servers"))
-async def cmd_servers(message: Message):
-    """Показать статус серверов"""
-    response_text = "🖥️ *Статус серверов:*\n\n"
-    
-    for server in Config.SERVER_LIST:
-        # Получаем статус сервера из Happ
-        status = await happ_api.get_server_status(server["id"])
-        
-        status_emoji = "🟢" if status.get("status") == "online" else "🔴"
-        load = status.get("load", 0)
-        
-        response_text += (
-            f"{status_emoji} *{server['name']}*\n"
-            f"  Хост: {server['host']}:{server['port']}\n"
-            f"  Нагрузка: {load}%\n\n"
-        )
-    
-    await message.answer(response_text, parse_mode="Markdown")
-
-# Обработчики callback-запросов
-@dp.callback_query(lambda c: c.data.startswith("server_"))
-
-async def process_server_selection(callback_query: types.CallbackQuery, state: FSMContext):
-    """Обработка выбора сервера"""
-    server_id = int(callback_query.data.split("_")[1])
-    
-    # Сохраняем выбранный сервер в состоянии
-    await state.update_data(server_id=server_id)
-    await state.set_state(SubscriptionStates.choosing_period)
-    
-    server_name = next(
-        (s["name"] for s in Config.SERVER_LIST if s["id"] == server_id),
-        f"Сервер #{server_id}"
-    )
-    
-    await callback_query.message.edit_text(
-        f"Выбран сервер: *{server_name}*\n\n"
-        "📅 *Выберите период подписки:*",
-        parse_mode="Markdown",
-        reply_markup=get_period_keyboard()
-    )
-    await callback_query.answer()
-
-@dp.callback_query(lambda c: c.data.startswith("period_"))
-async def process_period_selection(callback_query: types.CallbackQuery, state: FSMContext):
-    """Обработка выбора периода подписки"""
-    period_days = int(callback_query.data.split("_")[1])
-    
-    # Получаем данные из состояния
-    data = await state.get_data()
-    server_id = data.get("server_id")
-    
-    if not server_id:
-        await callback_query.answer("Ошибка: сервер не выбран")
-        return
-    
-    server_name = next(
-        (s["name"] for s in Config.SERVER_LIST if s["id"] == server_id),
-        f"Сервер #{server_id}"
-    )
-    
-    # Создаем подписку в Happ
-    user_id = callback_query.from_user.id
-    subscription = await happ_api.create_subscription(user_id, server_id, period_days)
-    
-    if subscription:
-        end_date = datetime.fromisoformat(subscription["end_date"])
-        
-        success_text = (
-            "🎉 *Подписка успешно создана!*\n\n"
-            f"• Сервер: *{server_name}*\n"
-            f"• Период: *{period_days} дней*\n"
-            f"• Действует до: *{end_date.strftime('%d.%m.%Y')}*\n\n"
-            "Для подключения используйте конфигурацию из Happ приложения."
-        )
-        
-        # Отправляем конфигурацию
-        config_text = f"""
-        ⚙️ *Конфигурация для подключения:*
-        
-        
-        server: {next(s['host'] for s in Config.SERVER_LIST if s['id'] == server_id)}
-        port: {next(s['port'] for s in Config.SERVER_LIST if s['id'] == server_id)}
-        username: user_{user_id}
-        password: {subscription['access_token'][:8]}...
-        protocol: wireguard
-                
-        Скачайте Happ приложение и введите эти данные.
-        """
-        
-        await callback_query.message.edit_text(success_text, parse_mode="Markdown")
-        await callback_query.message.answer(config_text, parse_mode="Markdown")
-    else:
-        await callback_query.message.edit_text(
-            "❌ *Ошибка создания подписки*\n\n"
-            "Пожалуйста, попробуйте позже или обратитесь в поддержку.",
-            parse_mode="Markdown"
-        )
-    
-    await state.clear()
-    await callback_query.answer()
-
-@dp.callback_query(lambda c: c.data == "back_to_servers")
-async def process_back_to_servers(callback_query: types.CallbackQuery, state: FSMContext):
-    """Вернуться к выбору сервера"""
-    await state.set_state(SubscriptionStates.choosing_server)
-    
-    servers_text = "🌐 *Выберите сервер для подключения:*\n\n"
-    for server in Config.SERVER_LIST:
-        servers_text += f"• {server['name']}\n"
-    
-    await callback_query.message.edit_text(
-        servers_text,
-        parse_mode="Markdown",
-        reply_markup=get_servers_keyboard()
-    )
-    await callback_query.answer()
-
-@dp.callback_query(lambda c: c.data == "cancel")
-async def process_cancel(callback_query: types.CallbackQuery, state: FSMContext):
-    """Отмена операции"""
-    await state.clear()
-    await callback_query.message.edit_text("❌ Операция отменена.")
-    await callback_query.answer()
-
-# Запуск бота
 async def main():
-    logger.info("Starting VPN Bot...")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
     asyncio.run(main())
-
-
-
