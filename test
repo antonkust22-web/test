@@ -1,64 +1,32 @@
-import asyncio
-import requests
 from aiogram import Bot, Dispatcher, types, F
-from aiogram.filters import Command
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+import asyncio
 
-# Настройки бота и X-UI
-BOT_TOKEN = "8568075251:AAFT57b2PVMa5KJNRpPa6WxoZ0Xlv--YXTY"
-XUI_URL = "http:/mu9QJ5terMHM2MY:2283"  # Например: http://1.2.3.4:2053
-XUI_USERNAME = "wninHaLQsL"
-XUI_PASSWORD = "yOWYmJCsAk"
-
-bot = Bot(token=BOT_TOKEN)
+API_TOKEN = '8739413711:AAHj9oc1N34Xgs-qHSjnsE5m1WZgbgcJI98'
+bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
 
-# 1. Функция авторизации в X-UI
-def get_xui_session():
-    session = requests.Session()
-    session.post(f"{XUI_URL}/login", data={"username": XUI_USERNAME, "password": XUI_PASSWORD})
-    return session
+@dp.message(F.video)
+async def get_video_id(message: types.Message):
+    # Бот пришлет вам ID видео, который нужно скопировать
+    await message.reply(f"ID вашего видео:\n<code>{message.video.file_id}</code>", parse_mode="HTML")
+    print(f"ID получен: {message.video.file_id}")
 
-# 2. Функция создания клиента (VPN-ключа)
-def create_vpn_client(user_id):
-    session = get_xui_session()
-    # Пример запроса добавления клиента к inbounds (зависит от версии X-UI)
-    # email должен быть уникальным
-    client_data = {
-        "id": "1", # ID inbound'а в панели
-        "settings": {
-            "clients": [{
-                "id": user_id, # Обычно используется UUID
-                "email": f"user_{user_id}",
-                "limitIp": 2,
-                "totalGB": 0,
-                "expiryTime": 0,
-                "enable": True
-            }]
-        }
-    }
-    # URL для добавления клиента (может отличаться в разных X-UI)
-    response = session.post(f"{XUI_URL}/xui/inbound/addClient", json=client_data)
-    return response.json()
-
-@dp.message(Command("start"))
-async def cmd_start(message: types.Message):
-    await message.answer("Привет! Нажми /get_vpn чтобы получить доступ.")
-
-@dp.message(Command("get_vpn"))
-async def cmd_get_vpn(message: types.Message):
-    # Создаем клиента в X-UI
-    user_key = f"user-{message.from_user.id}"
-    create_vpn_client(user_key)
+# Хендлер ловит любые отправленные боту фотографии
+@dp.message(F.photo)
+async def get_photo_file_id(message: types.Message):
+    # message.photo[-1] берет самое лучшее качество картинки
+    photo_file_id = message.photo[-1].file_id
     
-    # Здесь нужно сформировать ссылку VLESS/VMess на основе данных X-UI
-    # Обычно она выглядит как: vless://...
-    vpn_link = f"vless://..." 
-    
-    await message.answer(f"Ваш VPN-ключ:\n`{vpn_link}`", parse_mode="Markdown")
+    # Бот пришлет вам готовый ID, обернутый в тег code (можно скопировать в один клик)
+    await message.reply(
+        f"✅ <b>File ID вашей картинки:</b>\n\n<code>{photo_file_id}</code>",
+        parse_mode="HTML"
+    )
+
 
 async def main():
+    print("Бот запущен. Отправьте ему видео файлом или кружочком...")
     await dp.start_polling(bot)
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     asyncio.run(main())
