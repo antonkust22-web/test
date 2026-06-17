@@ -1,32 +1,72 @@
-from aiogram import Bot, Dispatcher, types, F
-import asyncio
+import logging
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-API_TOKEN = '8739413711:AAHj9oc1N34Xgs-qHSjnsE5m1WZgbgcJI98'
-bot = Bot(token=API_TOKEN)
-dp = Dispatcher()
+# Настройка логирования
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                    level=logging.INFO)
 
-@dp.message(F.video)
-async def get_video_id(message: types.Message):
-    # Бот пришлет вам ID видео, который нужно скопировать
-    await message.reply(f"ID вашего видео:\n<code>{message.video.file_id}</code>", parse_mode="HTML")
-    print(f"ID получен: {message.video.file_id}")
+# Данные о серверах
+SERVERS = [
+    {
+        "id": "fi_1",
+        "panel_url": "https://78.17.1.43:2053",
+        "base_path": "/bqPVI4YlUguDhw0MvD", 
+        "panel_user": "Asad",
+        "panel_password": "Lodka120259",
+        "inbound_id": 1,
+        "my_ip": "78.17.1.43",
+        "pbk": "aZDw05rr-XfdquuaFADqMzM1aAdeFhhpx_Du69Io3Sc",
+        "sid": "f2cfb510fbaa",
+        "sni": "sony.com",
+        "country_flag": "🇫🇮",
+        "country_name": "Финляндия"
+    },
+    {
+        "id": "de_1",
+        "panel_url": "http://78.17.152.36:2053",
+        "base_path": "/root",
+        "panel_user": "Soul",
+        "panel_password": "Lodka1321",
+        "inbound_id": 1,
+        "my_ip": "78.17.152.36",
+        "pbk": "XAAgoWsZcO3CWrMnx1r-hFNYVn8u5rfuZxCD-r5jKEY",
+        "sid": "aa72b4f659",
+        "sni": "sony.com",
+        "country_flag": "🇵🇱",
+        "country_name": "Польша"
+    }
+]
 
-# Хендлер ловит любые отправленные боту фотографии
-@dp.message(F.photo)
-async def get_photo_file_id(message: types.Message):
-    # message.photo[-1] берет самое лучшее качество картинки
-    photo_file_id = message.photo[-1].file_id
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text('Привет! Используйте команду /get_vpn для получения ссылки на VPN.')
+
+async def get_vpn(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    # Формируем подписку-ссылку на каждый сервер
+    subscription_links = []
     
-    # Бот пришлет вам готовый ID, обернутый в тег code (можно скопировать в один клик)
-    await message.reply(
-        f"✅ <b>File ID вашей картинки:</b>\n\n<code>{photo_file_id}</code>",
-        parse_mode="HTML"
-    )
+    for server in SERVERS:
+        link = f"{server['panel_url']}{server['base_path']}"
+        subscription_links.append(link)
 
+    # Объединяем ссылки в одну строку
+    subscription_message = "\n".join(subscription_links)
+    
+    await update.message.reply_text(f"Вот ваши подписка-ссылки на VPN:\n{subscription_message}")
 
-async def main():
-    print("Бот запущен. Отправьте ему видео файлом или кружочком...")
-    await dp.start_polling(bot)
+async def main() -> None:
+    # Вставьте сюда токен вашего бота
+    token = '8568075251:AAFT57b2PVMa5KJNRpPa6WxoZ0Xlv--YXTY'
+    
+    application = ApplicationBuilder().token(token).build()
+
+    # Обработчики команд
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("get_vpn", get_vpn))
+
+    # Запускаем бота
+    await application.run_polling()
 
 if __name__ == '__main__':
+    import asyncio
     asyncio.run(main())
